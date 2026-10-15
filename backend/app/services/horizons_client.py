@@ -1,0 +1,140 @@
+import re
+import httpx
+from datetime import datetime, timezone
+from typing import Optional, List
+from fastapi import HTTPException
+from ..config import settings
+from ..schemas.asteroid import EphemerisPoint, EphemerisResponse
+from .cache_service import cache
+
+VECTOR_PATTERN = re.compile(
+    r'(\d+\.\d+)\s*=\s*A\.D\.\s*([^\r\n]+)[\r\n]+'
+    r'\s*X\s*=\s*([+\-\d\.E]+)\s+Y\s*=\s*([+\-\d\.E]+)\s+Z\s*=\s*([+\-\d\.E]+)[\r\n]+'
+    r'\s*VX\s*=\s*([+\-\d\.E]+)\s+VY\s*=\s*([+\-\d\.E]+)\s+VZ\s*=\s*([+\-\d\.E]+)[\r\n]+'
+    r'\s*LT\s*=\s*([+\-\d\.E]+)\s+RG\s*=\s*([+\-\d\.E]+)\s+RR\s*=\s*([+\-\d\.E]+)'
+)
+
+class HorizonsClient:
+    def __init__(self):
+        self.base_url = settings.HORIZONS_API_URL
+        self.timeout = 20.0  # Horizons can take a bit longer for long ephemerides
+
+    async def get_ephemeris(
+        self,
+        command: str,
+        start_time: str = "2026-10-01",
+        stop_time: str = "2027-10-01",
+        step_size: str = "10d"
+    ) -> EphemerisResponse:
+        clean_cmd = command.strip()
+        cache_key = f"horizons:{clean_cmd}:{start_time}:{stop_time}:{step_size}"
+        cached = cache.get(cache_key)
+        if cached:
+            return EphemerisResponse(**cached)
+
+        # Build query parameters with quotes as required by JPL Horizons API
+        params = {
+            "format": "json",
+            "COMMAND": f"'{clean_cmd}'",
+            "OBJ_DATA": "NO",
+            "MAKE_EPHEM": "YES",
+            "EPHEM_TYPE": "VECTORS",
+            "CENTER": "'@sun'",
+            "START_TIME": f"'{start_time}'",
+            "STOP_TIME": f"'{stop_time}'",
+            "STEP_SIZE": f"'{step_size}'",
+            "REF_PLANE": "'ECLIPTIC'",
+            "OUT_UNITS": "'AU-D'"
+        }
+
+        headers = {"User-Agent": settings.USER_AGENT}
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.get(self.base_url, params=params, headers=headers)
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"NASA/JPL Horizons service connection error: {str(exc)}"
+            )
+
+        if resp.status_code != 200:
+            raise HTTPException(
+                status_code=resp.status_code,
+                detail=f"NASA/JPL Horizons returned error: {resp.text}"
+            )
+
+        data = resp.json()
+        result_text = data.get("result", "")
+
+        # Look for SOE (Start of Ephemeris) and EOE (End of Ephemeris)
+        soe_idx = result_text.find("$$SOE")
+        eoe_idx = result_text.find("$$EOE")
+
+        if soe_idx == -1 or eoe_idx == -1:
+            # Check if there is an error message in result
+            err_line = result_text[:400]
+            raise HTTPException(
+                status_code=400,
+                detail=f"Horizons could not generate ephemeris vectors. Output: {err_line}"
+            )
+
+        table_content = result_text[soe_idx + 5 : eoe_idx]
+        matches = VECTOR_PATTERN.findall(table_content)
+
+        # Extract target name from header
+        target_name = clean_cmd
+        name_match = re.search(r"Target body name:\s*([^\r\n{]+)", result_text)
+        if name_match:
+            target_name = name_match.group(1).strip()
+
+        points: List[EphemerisPoint] = []
+        for m in matches:
+            try:
+                jd = float(m[0])
+                cdate = m[1].strip()
+                x = float(m[2])
+                y = float(m[3])
+                z = float(m[4])
+                vx = float(m[5])
+                vy = float(m[6])
+                vz = float(m[7])
+                rg = float(m[9])  # distance from Sun in AU
+
+                # Speed calculation from velocity (AU/day to km/s: 1 AU/d = 1731.456836 km/s)
+                speed_km_s = (vx**2 + vy**2 + vz**2)**0.5 * 1731.456836
+
+                points.append(EphemerisPoint(
+                    jd=jd,
+                    calendar_date=cdate,
+                    x_au=round(x, 6),
+                    y_au=round(y, 6),
+                    z_au=round(z, 6),
+                    vx_km_s=round(vx * 1731.456836, 3),
+                    vy_km_s=round(vy * 1731.456836, 3),
+                    vz_km_s=round(vz * 1731.456836, 3),
+                    distance_sun_au=round(rg, 5),
+                    speed_km_s=round(speed_km_s, 2)
+                ))
+            except Exception:
+                continue
+
+        response = EphemerisResponse(
+            designation=clean_cmd,
+            target_name=target_name,
+            center_body="Sun (body center)",
+            reference_frame="Ecliptic and Equinox of J2000.0",
+            points=points,
+            start_time=start_time,
+            stop_time=stop_time,
+            step_size=step_size,
+            count=len(points),
+            source_url="https://ssd.jpl.nasa.gov/horizons/",
+            retrieved_at=datetime.now(timezone.utc).isoformat(),
+            provenance_note="Ephemeris vectors generated by NASA/JPL Horizons on-line solar system data and ephemeris computation service."
+        )
+
+        cache.set(cache_key, response.model_dump(), ttl_sec=7200)  # 2 hours cache
+        return response
+
+horizons_client = HorizonsClient()
