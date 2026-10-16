@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GlossaryTerm } from '../types';
 import { apiClient } from '../api/client';
-import { BookOpen, HelpCircle, AlertOctagon, ExternalLink, ShieldCheck } from 'lucide-react';
+import { BookOpen, HelpCircle, AlertOctagon, ExternalLink, Sparkles } from 'lucide-react';
 
 export const GlossarySection: React.FC = () => {
   const [terms, setTerms] = useState<GlossaryTerm[]>([]);
@@ -21,33 +21,33 @@ export const GlossarySection: React.FC = () => {
   }, []);
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto">
+    <div className="space-y-10 max-w-5xl mx-auto">
       
       {/* Header */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-300 text-xs font-medium">
+      <div className="text-center space-y-3">
+        <div className="inline-flex items-center space-x-2 px-4 py-1 rounded-full bg-neon-purple/20 border border-neon-purple/40 text-neon-pink text-xs font-bold font-mono">
           <BookOpen className="w-3.5 h-3.5" />
-          <span>Scientific Knowledge Base</span>
+          <span>ASTRONOMY &amp; PLANETARY DEFENSE GUIDE</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
-          Asteroid Tracking &amp; Orbital Mechanics Guide
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white font-display">
+          Asteroid Tracking &amp; Orbital Mechanics
         </h1>
-        <p className="text-xs sm:text-sm text-slate-400 max-w-2xl mx-auto">
-          Understand the mathematical parameters, coordinate frames, and planetary defense terminology published by NASA/JPL.
+        <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed">
+          Demystifying the mathematical parameters, coordinate frames, and planetary risk indicators published by NASA/JPL.
         </p>
       </div>
 
-      {/* Official Disclaimer Banner */}
+      {/* Official Disclaimer Banner with Amber Neon Glow */}
       {disclaimer && (
-        <div className="p-5 rounded-2xl bg-amber-950/20 border border-amber-500/30 text-amber-200 space-y-2">
-          <div className="flex items-center space-x-2 text-amber-400 font-semibold text-sm">
-            <AlertOctagon className="w-4 h-4 flex-shrink-0" />
+        <div className="p-6 sm:p-7 rounded-3xl cosmic-card border-neon-amber/40 shadow-[0_0_30px_rgba(255,190,26,0.15)] text-amber-200 space-y-3">
+          <div className="flex items-center space-x-2.5 text-neon-amber font-extrabold text-base font-display">
+            <AlertOctagon className="w-5 h-5 flex-shrink-0" />
             <span>{disclaimer.title} ({disclaimer.title_bn})</span>
           </div>
-          <p className="text-xs text-amber-200/90 leading-relaxed">
+          <p className="text-xs sm:text-sm text-amber-100/90 leading-relaxed">
             {disclaimer.text}
           </p>
-          <p className="text-xs text-amber-300/80 leading-relaxed font-sans">
+          <p className="text-xs sm:text-sm text-amber-300/90 leading-relaxed font-sans">
             {disclaimer.text_bn}
           </p>
           <div className="pt-2">
@@ -55,48 +55,50 @@ export const GlossarySection: React.FC = () => {
               href="https://cneos.jpl.nasa.gov/"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center space-x-1 text-xs text-amber-400 hover:text-amber-300 underline font-medium"
+              className="inline-flex items-center space-x-1.5 text-xs text-neon-amber hover:text-white underline font-bold"
             >
               <span>Visit NASA Center for Near-Earth Object Studies (CNEOS)</span>
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
         </div>
       )}
 
       {/* Glossary Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {terms.map((item) => (
           <div
             key={item.term}
-            className="p-5 rounded-xl card-glass border border-slate-800 space-y-3 flex flex-col justify-between"
+            className="p-6 rounded-3xl cosmic-card cosmic-card-hover border-neon-purple/30 space-y-4 flex flex-col justify-between"
           >
             <div>
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-white flex items-center space-x-2">
-                    <span>{item.term}</span>
+                  <h3 className="text-lg font-extrabold text-white font-display">
+                    {item.term}
                   </h3>
-                  <div className="text-xs text-sky-400 font-medium mt-0.5">
+                  <div className="text-xs text-neon-cyan font-bold mt-0.5">
                     {item.label_bn}
                   </div>
                 </div>
-                <HelpCircle className="w-4 h-4 text-slate-500" />
+                <div className="w-8 h-8 rounded-full bg-neon-purple/20 border border-neon-purple/30 flex items-center justify-center">
+                  <HelpCircle className="w-4 h-4 text-neon-purple" />
+                </div>
               </div>
 
-              <p className="text-xs text-slate-300 mt-2.5 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-300 mt-3 leading-relaxed">
                 {item.definition}
               </p>
             </div>
 
-            <div className="space-y-2 pt-2 border-t border-slate-800/80 text-[11px]">
+            <div className="space-y-2.5 pt-3 border-t border-neon-purple/20 text-xs">
               <div>
-                <span className="font-semibold text-slate-400">Scientific Importance: </span>
-                <span className="text-slate-300">{item.importance}</span>
+                <span className="font-bold text-slate-400">Scientific Importance: </span>
+                <span className="text-slate-200">{item.importance}</span>
               </div>
               {item.misconception && (
-                <div className="p-2 rounded-lg bg-rose-950/20 border border-rose-500/20 text-rose-300">
-                  <span className="font-bold">Common Misconception: </span>
+                <div className="p-3 rounded-2xl bg-rose-950/30 border border-neon-pink/30 text-rose-200 leading-relaxed">
+                  <strong className="text-neon-pink font-bold">Common Misconception: </strong>
                   <span>{item.misconception}</span>
                 </div>
               )}

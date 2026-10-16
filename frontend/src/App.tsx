@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
+import { HeroSection } from './components/HeroSection';
 import { CloseApproachDashboard } from './components/CloseApproachDashboard';
 import { OrbitVisualizer } from './components/OrbitVisualizer';
 import { GlossarySection } from './components/GlossarySection';
@@ -68,10 +69,11 @@ export const App: React.FC = () => {
   const handleVisualizeOrbit = (designation: string) => {
     setSelectedOrbitAsteroid(designation);
     setActiveTab('orbit');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-space-950 text-slate-100 space-gradient">
+    <div className="min-h-screen flex flex-col bg-[#0c051e] cosmic-nebula-bg star-dots text-slate-100 selection:bg-neon-pink/30 selection:text-neon-pink">
       
       {/* Top Navigation */}
       <Navbar
@@ -84,28 +86,51 @@ export const App: React.FC = () => {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
+        
         {activeTab === 'dashboard' && (
-          <CloseApproachDashboard
-            items={approaches}
-            isLoading={loadingApproaches}
-            onSelectAsteroid={(des) => setSelectedDetailAsteroid(des)}
-            onVisualizeOrbit={handleVisualizeOrbit}
-            filters={cadFilters}
-            onUpdateFilters={setCadFilters}
-          />
+          <div className="space-y-12">
+            {/* Colorful Space Hero Section (Inspired by uploaded images) */}
+            <HeroSection
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              onSearch={handleSearch}
+              onQuickSelect={(des) => setSelectedDetailAsteroid(des)}
+              onExploreApproaches={() => {
+                const el = document.getElementById('close-approaches-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              onOpenOrbitView={() => handleVisualizeOrbit('99942')}
+            />
+
+            <div id="close-approaches-section" className="pt-2">
+              <CloseApproachDashboard
+                items={approaches}
+                isLoading={loadingApproaches}
+                onSelectAsteroid={(des) => setSelectedDetailAsteroid(des)}
+                onVisualizeOrbit={handleVisualizeOrbit}
+                filters={cadFilters}
+                onUpdateFilters={setCadFilters}
+              />
+            </div>
+          </div>
         )}
 
         {activeTab === 'orbit' && (
-          <OrbitVisualizer
-            selectedAsteroid={selectedOrbitAsteroid}
-            onSelectAsteroid={setSelectedOrbitAsteroid}
-          />
+          <div className="pt-4">
+            <OrbitVisualizer
+              selectedAsteroid={selectedOrbitAsteroid}
+              onSelectAsteroid={setSelectedOrbitAsteroid}
+            />
+          </div>
         )}
 
         {activeTab === 'glossary' && (
-          <GlossarySection />
+          <div className="pt-4">
+            <GlossarySection />
+          </div>
         )}
+
       </main>
 
       {/* Asteroid Detail Modal (SBDB & CAD history) */}

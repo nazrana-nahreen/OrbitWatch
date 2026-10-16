@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { EphemerisResponse, EphemerisPoint } from '../types';
+import { EphemerisResponse } from '../types';
 import { apiClient } from '../api/client';
-import { Play, Pause, RotateCcw, ZoomIn, ZoomOut, Compass, Info, Orbit, Sparkles } from 'lucide-react';
+import { Play, Pause, RotateCcw, ZoomIn, ZoomOut, Orbit, Sparkles } from 'lucide-react';
 
 interface OrbitVisualizerProps {
   selectedAsteroid: string;
@@ -45,7 +45,6 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
     setLoading(true);
     setError(null);
 
-    // Fetch 1 full year ephemeris from JPL Horizons
     apiClient.getEphemeris(selectedAsteroid, {
       start_time: '2026-10-01',
       stop_time: '2027-10-01',
@@ -74,22 +73,19 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
 
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % data.points.length);
-    }, 150 / playbackSpeed);
+    }, 140 / playbackSpeed);
 
     return () => clearInterval(interval);
   }, [isPlaying, data, playbackSpeed]);
 
-  // Current active points
   const currentAstPoint = data?.points[currentIndex] || null;
 
-  // Approximate Earth coordinates at corresponding day of year
-  // (Earth completes 1 orbit in 365.25 days around 1.0 AU)
+  // Approximate Earth coordinates
   const currentEarthPoint = useMemo(() => {
     if (!data || data.points.length === 0 || !currentAstPoint) {
       return { x: 1.0, y: 0.0, z: 0.0 };
     }
-    // Fraction of year from Oct 1 (day ~274 of year)
-    const dayOffset = currentIndex * 5; // step size 5 days
+    const dayOffset = currentIndex * 5;
     const totalDays = (274 + dayOffset) % 365.25;
     const angle = (totalDays / 365.25) * 2 * Math.PI;
     return {
@@ -117,7 +113,6 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Handle high DPI
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
@@ -129,34 +124,38 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
     const centerX = width / 2;
     const centerY = height / 2;
 
-    // Clear background
-    ctx.fillStyle = '#070a13';
+    // Deep cosmic gradient background
+    const bgGrad = ctx.createRadialGradient(centerX, centerY, 50, centerX, centerY, width * 0.7);
+    bgGrad.addColorStop(0, '#160833');
+    bgGrad.addColorStop(0.5, '#0f0524');
+    bgGrad.addColorStop(1, '#090317');
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // Draw background stars
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-    for (let i = 0; i < 40; i++) {
-      const sx = ((i * 137.5) % width);
-      const sy = ((i * 249.3) % height);
-      ctx.fillRect(sx, sy, 1.2, 1.2);
+    // Draw multi-colored celestial stars
+    const starColors = ['#ffffff', '#ff9ec6', '#8be9fd', '#ffeaa7', '#c084fc'];
+    for (let i = 0; i < 50; i++) {
+      const sx = ((i * 179.3) % width);
+      const sy = ((i * 283.7) % height);
+      const color = starColors[i % starColors.length];
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.35 + (i % 5) * 0.12;
+      ctx.fillRect(sx, sy, 1.5, 1.5);
     }
+    ctx.globalAlpha = 1.0;
 
     // 3D Projection Helper
-    // Rotates point (x, y, z) by rotationZ (around Z axis) and rotationX (around X axis)
     const radX = (rotationX * Math.PI) / 180;
     const radZ = (rotationZ * Math.PI) / 180;
 
     const project = (x: number, y: number, z: number) => {
-      // Rotate around Z axis (ecliptic longitude)
       const x1 = x * Math.cos(radZ) - y * Math.sin(radZ);
       const y1 = x * Math.sin(radZ) + y * Math.cos(radZ);
       const z1 = z;
 
-      // Rotate around X axis (inclination tilt)
       const y2 = y1 * Math.cos(radX) - z1 * Math.sin(radX);
       const z2 = y1 * Math.sin(radX) + z1 * Math.cos(radX);
 
-      // Project to 2D canvas coordinates
       return {
         px: centerX + x1 * zoom,
         py: centerY - y2 * zoom,
@@ -164,8 +163,8 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
       };
     };
 
-    // 1. Draw Ecliptic Reference Plane Grid Rings (0.5 AU, 1.0 AU Earth, 1.5 AU Mars-like)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    // 1. Draw Ecliptic Reference Plane Grid Rings
+    ctx.strokeStyle = 'rgba(176, 87, 252, 0.15)';
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
 
@@ -180,9 +179,9 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
       ctx.stroke();
     });
 
-    // 2. Draw Earth's Orbit (1.0 AU, Cyan)
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-    ctx.lineWidth = 1.5;
+    // 2. Draw Earth's Orbit (1.0 AU, Vibrant Cyan with glow)
+    ctx.strokeStyle = 'rgba(6, 182, 212, 0.55)';
+    ctx.lineWidth = 2;
     ctx.setLineDash([]);
     ctx.beginPath();
     for (let i = 0; i <= 72; i++) {
@@ -193,10 +192,10 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
     }
     ctx.stroke();
 
-    // 3. Draw Asteroid Orbit Trajectory (from Horizons Points)
+    // 3. Draw Asteroid Orbit Trajectory (Vibrant Neon Coral/Pink)
     if (data && data.points.length > 0) {
-      ctx.strokeStyle = 'rgba(245, 158, 11, 0.7)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ff2a85';
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
 
       data.points.forEach((pt, i) => {
@@ -206,8 +205,8 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
       });
       ctx.stroke();
 
-      // Draw vertical drop-lines from points to ecliptic plane to visualize inclination
-      ctx.strokeStyle = 'rgba(245, 158, 11, 0.15)';
+      // Drop lines to visualize orbital inclination
+      ctx.strokeStyle = 'rgba(255, 42, 133, 0.2)';
       ctx.setLineDash([2, 2]);
       data.points.forEach((pt, i) => {
         if (i % 6 === 0) {
@@ -222,41 +221,53 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
       ctx.setLineDash([]);
     }
 
-    // 4. Draw the Sun at Center (0, 0, 0)
+    // 4. Draw Radiant Golden Sun at Center (0, 0, 0)
     const sunPt = project(0, 0, 0);
-    // Sun outer glow
-    const sunGlow = ctx.createRadialGradient(sunPt.px, sunPt.py, 2, sunPt.px, sunPt.py, 20);
-    sunGlow.addColorStop(0, 'rgba(251, 191, 36, 1)');
-    sunGlow.addColorStop(0.3, 'rgba(245, 158, 11, 0.6)');
-    sunGlow.addColorStop(1, 'rgba(245, 158, 11, 0)');
+    // Outer Corona Glow
+    const sunGlow = ctx.createRadialGradient(sunPt.px, sunPt.py, 3, sunPt.px, sunPt.py, 28);
+    sunGlow.addColorStop(0, '#fffbeb');
+    sunGlow.addColorStop(0.2, '#fde047');
+    sunGlow.addColorStop(0.5, 'rgba(255, 138, 61, 0.8)');
+    sunGlow.addColorStop(1, 'rgba(255, 42, 133, 0)');
     ctx.fillStyle = sunGlow;
     ctx.beginPath();
-    ctx.arc(sunPt.px, sunPt.py, 20, 0, 2 * Math.PI);
+    ctx.arc(sunPt.px, sunPt.py, 28, 0, 2 * Math.PI);
     ctx.fill();
 
     // Sun core
-    ctx.fillStyle = '#fffbeb';
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(sunPt.px, sunPt.py, 6, 0, 2 * Math.PI);
+    ctx.arc(sunPt.px, sunPt.py, 7, 0, 2 * Math.PI);
     ctx.fill();
 
     // 5. Draw Earth Position at scrubbed epoch
     const earthPt = project(currentEarthPoint.x, currentEarthPoint.y, currentEarthPoint.z);
-    ctx.fillStyle = '#38bdf8';
+    
+    // Earth glow
+    const earthGlow = ctx.createRadialGradient(earthPt.px, earthPt.py, 1, earthPt.px, earthPt.py, 12);
+    earthGlow.addColorStop(0, '#22d3ee');
+    earthGlow.addColorStop(1, 'rgba(6, 182, 212, 0)');
+    ctx.fillStyle = earthGlow;
     ctx.beginPath();
-    ctx.arc(earthPt.px, earthPt.py, 5, 0, 2 * Math.PI);
+    ctx.arc(earthPt.px, earthPt.py, 12, 0, 2 * Math.PI);
     ctx.fill();
+
+    ctx.fillStyle = '#06b6d4';
+    ctx.beginPath();
+    ctx.arc(earthPt.px, earthPt.py, 5.5, 0, 2 * Math.PI);
+    ctx.fill();
+
     // Earth label
-    ctx.font = '10px Inter, sans-serif';
-    ctx.fillStyle = '#bae6fd';
-    ctx.fillText('Earth (1.0 AU)', earthPt.px + 8, earthPt.py + 3);
+    ctx.font = 'bold 11px Outfit, sans-serif';
+    ctx.fillStyle = '#67e8f9';
+    ctx.fillText('Earth (1.0 AU)', earthPt.px + 9, earthPt.py + 4);
 
     // 6. Draw Asteroid Position at scrubbed epoch
     if (currentAstPoint) {
       const astPt = project(currentAstPoint.x_au, currentAstPoint.y_au, currentAstPoint.z_au);
       
-      // Connecting dashed line between Earth and Asteroid
-      ctx.strokeStyle = 'rgba(244, 63, 94, 0.4)';
+      // Distance line connecting Earth & Asteroid
+      ctx.strokeStyle = 'rgba(255, 138, 61, 0.6)';
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
       ctx.moveTo(earthPt.px, earthPt.py);
@@ -264,25 +275,26 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Asteroid marker glow
-      const astGlow = ctx.createRadialGradient(astPt.px, astPt.py, 1, astPt.px, astPt.py, 10);
-      astGlow.addColorStop(0, 'rgba(244, 63, 94, 1)');
-      astGlow.addColorStop(1, 'rgba(244, 63, 94, 0)');
+      // Asteroid glow
+      const astGlow = ctx.createRadialGradient(astPt.px, astPt.py, 1, astPt.px, astPt.py, 16);
+      astGlow.addColorStop(0, '#ff2a85');
+      astGlow.addColorStop(0.5, 'rgba(255, 92, 106, 0.7)');
+      astGlow.addColorStop(1, 'rgba(255, 42, 133, 0)');
       ctx.fillStyle = astGlow;
       ctx.beginPath();
-      ctx.arc(astPt.px, astPt.py, 10, 0, 2 * Math.PI);
+      ctx.arc(astPt.px, astPt.py, 16, 0, 2 * Math.PI);
       ctx.fill();
 
       // Asteroid core
-      ctx.fillStyle = '#fb7185';
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(astPt.px, astPt.py, 4, 0, 2 * Math.PI);
+      ctx.arc(astPt.px, astPt.py, 5, 0, 2 * Math.PI);
       ctx.fill();
 
       // Asteroid label
-      ctx.font = 'bold 11px Inter, sans-serif';
-      ctx.fillStyle = '#fecdd3';
-      ctx.fillText(data?.target_name || selectedAsteroid, astPt.px + 8, astPt.py - 4);
+      ctx.font = 'bold 12px Outfit, sans-serif';
+      ctx.fillStyle = '#fbcfe8';
+      ctx.fillText(data?.target_name || selectedAsteroid, astPt.px + 10, astPt.py - 6);
     }
 
   }, [data, currentIndex, currentEarthPoint, currentAstPoint, rotationX, rotationZ, zoom]);
@@ -313,32 +325,32 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       
-      {/* Visualizer Header & Target Selector */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl card-glass border border-slate-800">
+      {/* Visualizer Header with Colorful Target Selector */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 rounded-3xl cosmic-card border-neon-purple/30">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            <span className="px-3 py-1 rounded-full text-xs font-bold font-mono bg-neon-amber/20 text-neon-amber border border-neon-amber/40 shadow-[0_0_10px_rgba(255,190,26,0.3)]">
               JPL HORIZONS 3D ENGINE
             </span>
-            <span className="text-xs text-slate-400">Ephemeris Vectors in Heliocentric Ecliptic Frame</span>
+            <span className="text-xs text-slate-300">Heliocentric Ecliptic Vectors in Astronomical Units</span>
           </div>
-          <h2 className="text-xl font-bold text-white mt-1">
-            Orbital Path &amp; Motion Simulator
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-2 font-display">
+            Interactive Orbit &amp; Motion Simulator
           </h2>
         </div>
 
-        {/* Quick Target Asteroid Buttons */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* Quick Target Asteroid Pill Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
           {PRESET_ASTEROIDS.map((ast) => (
             <button
               key={ast.des}
               onClick={() => onSelectAsteroid(ast.des)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
                 selectedAsteroid === ast.des
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                  ? 'btn-neon-glow shadow-md'
+                  : 'bg-space-900 text-slate-300 hover:text-white border border-neon-purple/30 hover:border-neon-pink'
               }`}
             >
               {ast.name}
@@ -348,16 +360,16 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
       </div>
 
       {/* 3D Canvas Box */}
-      <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-space-950 shadow-2xl h-[480px] sm:h-[540px]">
+      <div className="relative rounded-3xl overflow-hidden border border-neon-purple/30 bg-space-950 shadow-2xl h-[500px] sm:h-[580px]">
         
         {loading ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-space-950/80 z-20">
-            <Orbit className="w-10 h-10 text-amber-400 animate-spin mb-3" />
-            <p className="text-sm font-medium">Computing ephemeris trajectory via NASA JPL Horizons...</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 bg-space-950/85 z-20">
+            <Orbit className="w-12 h-12 text-neon-pink animate-spin mb-3" />
+            <p className="text-sm font-bold font-display">Calculating ephemeris orbit vectors via NASA JPL Horizons...</p>
           </div>
         ) : error ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-rose-300 bg-space-950/90 z-20 p-6 text-center">
-            <p className="text-sm">{error}</p>
+            <p className="text-sm font-semibold">{error}</p>
           </div>
         ) : null}
 
@@ -372,28 +384,28 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
           className="w-full h-full cursor-grab active:cursor-grabbing block"
         />
 
-        {/* On-Canvas Telemetry HUD (Top-Left) */}
-        <div className="absolute top-4 left-4 z-10 pointer-events-none space-y-2">
-          <div className="p-3 rounded-xl bg-space-900/80 backdrop-blur-md border border-slate-800/80 text-xs text-slate-300 space-y-1 w-64 shadow-lg">
-            <div className="text-[11px] font-mono text-amber-400 font-semibold uppercase tracking-wider">
+        {/* On-Canvas Telemetry HUD (Top-Left) with Frosted Purple Glass */}
+        <div className="absolute top-5 left-5 z-10 pointer-events-none space-y-2">
+          <div className="p-4 rounded-2xl cosmic-card border-neon-purple/40 text-xs text-slate-200 space-y-1.5 w-72 shadow-2xl backdrop-blur-xl">
+            <div className="text-xs font-mono text-neon-pink font-extrabold uppercase tracking-wider">
               {data?.target_name || selectedAsteroid}
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between pt-1">
               <span className="text-slate-400">Date (UTC):</span>
-              <span className="font-mono text-white">{currentAstPoint?.calendar_date || '—'}</span>
+              <span className="font-mono text-white font-bold">{currentAstPoint?.calendar_date || '—'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Sun Distance:</span>
-              <span className="font-mono text-white">{currentAstPoint?.distance_sun_au.toFixed(3)} AU</span>
+              <span className="font-mono text-neon-amber font-semibold">{currentAstPoint?.distance_sun_au.toFixed(3)} AU</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Orbital Speed:</span>
-              <span className="font-mono text-white">{currentAstPoint?.speed_km_s ? `${currentAstPoint.speed_km_s.toFixed(1)} km/s` : '—'}</span>
+              <span className="font-mono text-neon-cyan font-semibold">{currentAstPoint?.speed_km_s ? `${currentAstPoint.speed_km_s.toFixed(1)} km/s` : '—'}</span>
             </div>
             {distanceEarthAsteroid && (
-              <div className="pt-1.5 border-t border-slate-800/80 flex justify-between font-medium">
-                <span className="text-rose-400">Earth Distance:</span>
-                <span className="font-mono text-rose-300">
+              <div className="pt-2 border-t border-neon-purple/30 flex justify-between font-bold">
+                <span className="text-neon-pink">Earth Distance:</span>
+                <span className="font-mono text-neon-pink">
                   {distanceEarthAsteroid.distLD.toFixed(1)} LD ({distanceEarthAsteroid.distAU.toFixed(3)} AU)
                 </span>
               </div>
@@ -402,32 +414,30 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
         </div>
 
         {/* Camera Preset Buttons (Top-Right) */}
-        <div className="absolute top-4 right-4 z-10 flex flex-col space-y-2">
+        <div className="absolute top-5 right-5 z-10 flex flex-col space-y-2">
           <button
             onClick={() => { setRotationX(0); setRotationZ(0); }}
-            className="px-2.5 py-1.5 rounded-lg bg-space-900/80 backdrop-blur-md border border-slate-800 text-[11px] text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-            title="Top-Down View (Ecliptic Plane)"
+            className="px-3 py-1.5 rounded-full cosmic-card border-neon-purple/40 text-xs font-bold text-slate-200 hover:text-white hover:border-neon-cyan transition-all shadow-lg"
           >
             Top-Down (2D)
           </button>
           <button
             onClick={() => { setRotationX(55); setRotationZ(30); }}
-            className="px-2.5 py-1.5 rounded-lg bg-space-900/80 backdrop-blur-md border border-slate-800 text-[11px] text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-            title="3D Perspective Inclination View"
+            className="px-3 py-1.5 rounded-full cosmic-card border-neon-purple/40 text-xs font-bold text-slate-200 hover:text-white hover:border-neon-pink transition-all shadow-lg"
           >
             3D Tilt (55°)
           </button>
-          <div className="flex items-center space-x-1 bg-space-900/80 backdrop-blur-md border border-slate-800 rounded-lg p-1">
+          <div className="flex items-center space-x-1 cosmic-card border-neon-purple/40 rounded-full p-1 shadow-lg">
             <button
               onClick={() => setZoom((z) => Math.min(500, z + 30))}
-              className="p-1 rounded text-slate-400 hover:text-white"
+              className="p-1.5 rounded-full text-slate-300 hover:text-neon-cyan"
               title="Zoom In"
             >
               <ZoomIn className="w-4 h-4" />
             </button>
             <button
               onClick={() => setZoom((z) => Math.max(60, z - 30))}
-              className="p-1 rounded text-slate-400 hover:text-white"
+              className="p-1.5 rounded-full text-slate-300 hover:text-neon-pink"
               title="Zoom Out"
             >
               <ZoomOut className="w-4 h-4" />
@@ -436,18 +446,18 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
         </div>
 
         {/* Legend (Bottom-Left) */}
-        <div className="absolute bottom-4 left-4 z-10 pointer-events-none hidden sm:flex items-center space-x-4 bg-space-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800/80 text-[11px]">
+        <div className="absolute bottom-5 left-5 z-10 pointer-events-none hidden sm:flex items-center space-x-4 cosmic-card px-4 py-2 rounded-full border-neon-purple/30 text-xs font-semibold shadow-lg">
           <div className="flex items-center space-x-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-            <span className="text-slate-300">Sun (Origin)</span>
+            <span className="w-3 h-3 rounded-full bg-neon-amber shadow-[0_0_8px_#ffbe1a]"></span>
+            <span className="text-slate-200">Sun (Origin)</span>
           </div>
           <div className="flex items-center space-x-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
-            <span className="text-slate-300">Earth Orbit (1.0 AU)</span>
+            <span className="w-3 h-3 rounded-full bg-neon-cyan shadow-[0_0_8px_#06b6d4]"></span>
+            <span className="text-slate-200">Earth Orbit</span>
           </div>
           <div className="flex items-center space-x-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
-            <span className="text-slate-300">Asteroid Trajectory</span>
+            <span className="w-3 h-3 rounded-full bg-neon-pink shadow-[0_0_8px_#ff2a85]"></span>
+            <span className="text-slate-200">Asteroid Trajectory</span>
           </div>
         </div>
 
@@ -455,35 +465,35 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
 
       {/* Timeline Scrubber & Animation Controls */}
       {data && data.points.length > 0 && (
-        <div className="p-4 rounded-xl card-glass border border-slate-800 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center space-x-2">
+        <div className="p-5 rounded-2xl cosmic-card border-neon-purple/30 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center space-x-3">
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="px-3.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-medium text-xs flex items-center space-x-1.5 shadow-sm shadow-sky-500/20"
+                className="btn-neon-glow px-4 py-2 rounded-full font-bold text-xs flex items-center space-x-2 shadow-lg"
               >
-                {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                <span>{isPlaying ? 'Pause' : 'Play Motion'}</span>
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                <span>{isPlaying ? 'Pause' : 'Play Orbit Motion'}</span>
               </button>
 
               <button
                 onClick={() => { setIsPlaying(false); setCurrentIndex(0); }}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                className="p-2 rounded-full bg-space-900 hover:bg-space-800 text-slate-300 hover:text-white border border-neon-purple/30"
                 title="Reset to Start"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
 
-              <div className="flex items-center space-x-1 text-xs text-slate-400 ml-2">
+              <div className="flex items-center space-x-1.5 text-xs text-slate-300 ml-2 font-medium">
                 <span>Speed:</span>
                 {[1, 2, 4].map((spd) => (
                   <button
                     key={spd}
                     onClick={() => setPlaybackSpeed(spd)}
-                    className={`px-2 py-0.5 rounded text-[11px] ${
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold ${
                       playbackSpeed === spd
-                        ? 'bg-slate-700 text-white font-bold'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-neon-purple text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     {spd}x
@@ -492,7 +502,7 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
               </div>
             </div>
 
-            <div className="text-xs font-mono text-slate-300">
+            <div className="text-xs font-mono font-bold text-neon-cyan">
               Step {currentIndex + 1} of {data.points.length} • {currentAstPoint?.calendar_date}
             </div>
           </div>
@@ -507,7 +517,7 @@ export const OrbitVisualizer: React.FC<OrbitVisualizerProps> = ({
               setIsPlaying(false);
               setCurrentIndex(Number(e.target.value));
             }}
-            className="w-full accent-sky-400 cursor-pointer"
+            className="w-full accent-neon-pink cursor-pointer h-2 bg-space-900 rounded-lg"
           />
         </div>
       )}
