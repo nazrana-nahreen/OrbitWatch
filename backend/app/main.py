@@ -21,12 +21,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include route modules under API_PREFIX (/api/v1)
-app.include_router(health.router, prefix=settings.API_PREFIX)
-app.include_router(objects.router, prefix=settings.API_PREFIX)
-app.include_router(close_approaches.router, prefix=settings.API_PREFIX)
-app.include_router(ephemeris.router, prefix=settings.API_PREFIX)
-app.include_router(glossary.router, prefix=settings.API_PREFIX)
+# Include route modules under API_PREFIX (/api/v1) and /v1 (for serverless rewrite resilience)
+for pfx in [settings.API_PREFIX, "/v1"]:
+    app.include_router(health.router, prefix=pfx)
+    app.include_router(objects.router, prefix=pfx)
+    app.include_router(close_approaches.router, prefix=pfx)
+    app.include_router(ephemeris.router, prefix=pfx)
+    app.include_router(glossary.router, prefix=pfx)
 
 @app.get("/")
 async def root():
